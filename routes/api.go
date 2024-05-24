@@ -6,11 +6,10 @@ import (
 	"github.com/goravel/framework/facades"
 
 	"goravel/app/http/controllers"
-	"net/http"
 )
 
 func Api() {
-	userController := controllers.NewUserController(*db.NewUserRepository(), *db.NewDevicesRepository(), http.Request{})
+	userController := controllers.NewUserController(*db.NewUserRepository(), *db.NewDevicesRepository())
 	facades.Route().Get("/users", userController.Show)
 	facades.Route().Get("/users/{id}", userController.ShowById)
 	facades.Route().Post("/users", userController.Store)

@@ -10,24 +10,19 @@ import (
 	db "goravel/app/repository/DB"
 	"time"
 
-	"goravel/app/http/validators"
-	netHttp "net/http"
-
 	"github.com/gookit/validate"
 	"github.com/goravel/framework/auth"
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/facades"
-	rip "github.com/vikram1565/request-ip"
 )
 
 type UserController struct {
 	repoUser    db.UserRepository
 	repoDevices db.DevicesRepository
-	net         netHttp.Request
 }
 
-func NewUserController(repoUser db.UserRepository, repoDevices db.DevicesRepository, net netHttp.Request) *UserController {
-	return &UserController{repoUser, repoDevices, net}
+func NewUserController(repoUser db.UserRepository, repoDevices db.DevicesRepository) *UserController {
+	return &UserController{repoUser, repoDevices}
 }
 
 // Show user
@@ -148,7 +143,7 @@ func (r *UserController) Store(ctx http.Context) http.Response {
 // @Failure 400 {object} response.ErrorResponse{}
 // @Failure 500 {object} response.ErrorResponse{}
 func (r *UserController) Update(ctx http.Context) http.Response {
-	v := validators.NewUserValidator().Json(ctx.Request().All())
+	v := validate.New(ctx.Request().All())
 	if !v.Validate() {
 		return response.ErrBadRequest(errors.New(v.Errors.One()), ctx)
 	}
@@ -206,12 +201,12 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	v := validate.New(ctx.Request().All())
 	v.StringRule("email", "required|email")
 	v.StringRule("password", "required")
+	v.StringRule("device_id", "required")
+	v.StringRule("device_ip", "required")
 	if !v.Validate() {
 		return response.ErrBadRequest(errors.New(v.Errors.One()), ctx)
 	}
-	// email := ctx.Request().Input("email")
-	// password := ctx.Request().Input("password")
-	// userModel := models.User{}
+
 	userLogin := models.UserLogin{}
 	if err := ctx.Request().Bind(&userLogin); err != nil {
 		return response.ErrInternalServerError(err, ctx)
@@ -255,10 +250,7 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 
 	// Jika token tidak ada atau telah kedaluwarsa, lanjutkan dengan update token
 
-	networkIp := rip.GetClientIP(&r.net)
-	facades.Log().Info(networkIp)
-
-	result, err := r.repoDevices.UpdateDevice(ctx, tokenByUserID, user, token, ctx.Request().Header("DeviceID"), networkIp)
+	result, err := r.repoDevices.UpdateDevice(ctx, tokenByUserID, user, token, ctx.Request().Header("DeviceID"), ctx.Request().Header("DeviceIP"))
 
 	if err != nil {
 		return response.ErrInternalServerError(err, ctx)
@@ -270,16 +262,12 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 			UserID:   user.ID,
 			Token:    token,
 			DeviceID: ctx.Request().Header("DeviceID"),
-			DeviceIP: networkIp,
+			DeviceIP: ctx.Request().Header("DeviceIP"),
 		}
 
-		result, err := r.repoDevices.CreateDevice(ctx, devices)
+		_, err := r.repoDevices.CreateDevice(ctx, devices)
 		if err != nil {
-			return response.ErrInternalServerError(err, ctx)
-		}
-
-		if result.ID == 0 {
-			return response.ErrInternalServerError(errors.New("Failed to create device"), ctx)
+			return response.ErrInternalServerError(errors.New("failed to create device"), ctx)
 		}
 
 	}
