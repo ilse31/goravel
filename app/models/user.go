@@ -8,17 +8,17 @@ import (
 
 type User struct {
 	orm.Model
-	Name        string
-	Avatar      string
-	PhoneNumber string
-	Email       string
-	Password    string
-	DateOfBirth time.Time
-	LastLogin   time.Time
-	Country     string
-	City        string
-	Address     string
-	Status      string
+	Name        string    `json:"name"`
+	Avatar      string    `json:"avatar"`
+	PhoneNumber string    `json:"phone_number"`
+	Email       string    `json:"email"`
+	Password    string    `json:"password"`
+	DateOfBirth string    `json:"date_of_birth"`
+	LastLogin   time.Time `json:"last_login"`
+	Country     string    `json:"country"`
+	City        string    `json:"city"`
+	Address     string    `json:"address"`
+	Status      string    `json:"status"`
 	orm.SoftDeletes
 }
 
@@ -51,4 +51,9 @@ type UserLogin struct {
 
 type ResponseUserLogin struct {
 	Token string `json:"token"`
+}
+
+type UserExist struct {
+	IsExistEmail bool `json:"is_exist_email"`
+	IsExistPhone bool `json:"is_exist_phone"`
 }

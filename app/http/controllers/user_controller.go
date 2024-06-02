@@ -8,6 +8,7 @@ import (
 	response "goravel/app/helpers/responses"
 	"goravel/app/models"
 	db "goravel/app/repository/DB"
+	"strconv"
 	"time"
 
 	"github.com/gookit/validate"
@@ -72,29 +73,28 @@ func (r *UserController) Store(ctx http.Context) http.Response {
 	v.StringRule("avatar", "required")
 	v.StringRule("email", "required|email")
 	v.StringRule("phone_number", "required")
+	v.StringRule("password", "required")
 	if !v.Validate() {
 		return response.ErrBadRequest(errors.New(v.Errors.One()), ctx)
 	}
 
-	dateOfBirthStr := ctx.Request().Input("date_of_birth")
-	dateOfBirth, err := time.Parse("2006-01-02", dateOfBirthStr)
-	if err != nil {
-		return response.ErrInternalServerError(err, ctx)
-	}
-
 	password, err := facades.Hash().Make(ctx.Request().Input("password"))
 	if err != nil {
+
 		return response.ErrInternalServerError(err, ctx)
 	}
 
 	user := models.User{}
+
 	if err := ctx.Request().Bind(&user); err != nil {
+
 		return response.ErrInternalServerError(err, ctx)
 	}
 
 	isExisEmail, isExistPhone, err := r.repoUser.IsExistEmailandPhoneNumber(ctx, user.PhoneNumber, user.Email)
 
 	if err != nil {
+
 		return response.ErrInternalServerError(err, ctx)
 	}
 
@@ -106,7 +106,6 @@ func (r *UserController) Store(ctx http.Context) http.Response {
 		return response.ErrBadRequest(ierr.ErrPhoneNumberExist, ctx)
 	}
 
-	user.DateOfBirth = dateOfBirth
 	user.Password = password
 
 	err = r.repoUser.Store(ctx, user)
@@ -201,8 +200,6 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	v := validate.New(ctx.Request().All())
 	v.StringRule("email", "required|email")
 	v.StringRule("password", "required")
-	v.StringRule("device_id", "required")
-	v.StringRule("device_ip", "required")
 	if !v.Validate() {
 		return response.ErrBadRequest(errors.New(v.Errors.One()), ctx)
 	}
@@ -233,7 +230,7 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	}
 
 	//if exist token and device id. return error. dont allow user login with same device
-	if tokenByUserID.Token != "" && tokenByUserID.DeviceID == ctx.Request().Header("DeviceID") {
+	if tokenByUserID.Token != "" {
 		payload, err := facades.Auth().Parse(ctx, tokenByUserID.Token)
 		if err != nil {
 			if errors.Is(err, auth.ErrorTokenExpired) {
@@ -269,7 +266,17 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 		if err != nil {
 			return response.ErrInternalServerError(errors.New("failed to create device"), ctx)
 		}
+	}
+	userRowsAffected, err := r.repoUser.Update(ctx, models.User{
+		LastLogin: time.Now(),
+	}, strconv.Itoa(int(user.ID)))
 
+	if err != nil {
+		return response.ErrInternalServerError(err, ctx)
+	}
+
+	if userRowsAffected == 0 {
+		return response.ErrInternalServerError(errors.New("failed to update user"), ctx)
 	}
 
 	loginResponse := models.ResponseUserLogin{
@@ -277,4 +284,18 @@ func (r *UserController) Login(ctx http.Context) http.Response {
 	}
 
 	return response.SuccessOK(ctx, loginResponse)
+}
+
+// RefreshToken user
+// @Summary Refresh token
+// @Description refresh token
+// @Tags users
+// @Accept  json
+// @Produce  json
+func (r *UserController) RefreshToken(ctx http.Context) http.Response {
+	token, err := facades.Auth().Refresh(ctx)
+	if err != nil {
+		return response.ErrInternalServerError(err, ctx)
+	}
+	return response.SuccessOK(ctx, token)
 }

@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"goravel/app/models"
 
 	// "github.com/goravel/framework/database/gorm"
@@ -80,20 +81,24 @@ func (r *UserRepository) GetByID(ctx context.Context, ID string) (models.User, e
 }
 
 func (r *UserRepository) IsExistEmailandPhoneNumber(ctx context.Context, PhoneNumber string, Email string) (bool, bool, error) {
-	var isExistEmail, isExistPhone int64
-	err := facades.Orm().Query().Model(&models.User{}).Where("email = ?", Email).Count(&isExistEmail)
+	var userExist models.UserExist
 
+	// Check if the email exists
+	err := facades.Orm().Query().Raw("SELECT EXISTS (SELECT 1 FROM users WHERE email = ?) AS is_exist_email", Email).Scan(&userExist)
 	if err != nil {
 		return false, false, errors.Wrap(err, "failed to check email")
 	}
 
-	err = facades.Orm().Query().Model(&models.User{}).Where("phone_number = ?", PhoneNumber).Count(&isExistPhone)
+	// Check if the phone number exists
+	err = facades.Orm().Query().Raw("SELECT EXISTS (SELECT 1 FROM users WHERE phone_number = ?) AS is_exist_phone", PhoneNumber).Scan(&userExist)
 	if err != nil {
-		return false, false, errors.Wrap(err, "failed to check email")
+		return false, false, errors.Wrap(err, "failed to check phone number")
 	}
 
-	return isExistEmail > 0, isExistPhone > 0, nil
+	// Log the results for debugging purposes
+	fmt.Printf("isExistEmail: %t, isExistPhone: %t\n", userExist.IsExistEmail, userExist.IsExistPhone)
 
+	return userExist.IsExistEmail, userExist.IsExistPhone, nil
 }
 
 // Store creates a new user.
