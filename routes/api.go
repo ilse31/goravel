@@ -15,4 +15,7 @@ func Api() {
 	facades.Route().Post("/users", userController.Store)
 	facades.Route().Put("/users/{id}", userController.Update)
 	facades.Route().Post("/users/login", userController.Login)
+
+	animeController := controllers.NewAnimeController()
+	facades.Route().Get("/anime", animeController.ShowTopAnime)
 }
